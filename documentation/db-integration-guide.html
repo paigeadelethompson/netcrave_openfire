@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Openfire: Custom Database Integration Guide</title>
+    <link href="style.css" rel="stylesheet" type="text/css">
+</head>
+<body>
+
+<article>
+
+    <header>
+        <img src="images/header_logo.gif" alt="Openfire Logo" />
+        <h1>Custom Database Integration Guide</h1>
+    </header>
+
+    <nav>
+        <a href="index.html">&laquo; Back to documentation index</a>
+    </nav>
+
+    <section id="intro">
+
+        <h2>Introduction</h2>
+
+        <p>
+            This document provides instructions for integrating Openfire authentication, users, and
+            groups with your custom database tables. This is useful when your users already have
+            accounts in an external system and you do not wish to duplicate those accounts in Openfire.
+            If your user information is available via an LDAP directory rather than custom database
+            tables, see the <a href="ldap-guide.html">LDAP guide</a>.
+        </p>
+        <p>
+            Simple integration with a custom database lets users authenticate using their existing
+            username and password. Optionally, you can configure Openfire to load user profile and
+            group information from your custom database. Any group in Openfire can be designated
+            as a shared group, which means that you can pre-populate user's rosters using groups.
+        </p>
+
+        <p>Topics that are covered in this document:</p>
+
+        <nav>
+            <ul>
+                <li><a href="#background">Background</a>
+                <li><a href="#configuration">Configuration</a>
+                <li><a href="#database-connection-settings">Database Connection Settings</a>
+                <li><a href="#authentication-integration">Authentication Integration</a>
+                <li><a href="#user-integration">User Integration</a>
+                <li><a href="#group-integration">Group Integration</a>
+            </ul>
+        </nav>
+
+    </section>
+
+    <section id="background">
+
+        <h2>Background</h2>
+
+        <p>
+            The integration requires that you enter customized database queries to access your
+            database. You'll need to be familiar with your database table structure and simple SQL.
+            Your custom database can be a different database on a different server from the Openfire
+            database -- you'll enter database connection information as part of the configuration.
+        </p>
+
+    </section>
+
+    <section id="configuration">
+
+        <h2>Configuration</h2>
+
+        <p>
+            In order to configure your server to integrate with your custom database tables:
+        </p>
+        <ol>
+            <li>Stop Openfire.</li>
+            <li>Edit <code>conf/openfire.xml</code> in your Openfire installation folder as
+                described below using your favorite editor.
+            </li>
+            <li>Restart Openfire.</li>
+        </ol>
+
+    </section>
+
+    <section id="database-connection-settings">
+
+        <h3>Database Connection Settings</h3>
+
+        <p>
+            You must specify the connection string for your database as well as the JDBC driver.
+        </p>
+        <dl>
+            <dt>jdbcProvider.driver</dt>
+            <dd>the class name of the JDBC driver used to connect to your custom database. The driver must also be in
+                the Openfire classpath (for example, by placing it into the "lib/" directory of your Openfire
+                installation. See the <a href="database.html">database guide</a> for common driver names for major
+                databases.</dd>
+
+            <dt>jdbcProvider.connectionString</dt>
+            <dd>the full connection string for the database. Please consult your database driver documentation for
+                syntax. <b>Warning:</b> it's common for connection string to contain "&" characters. That character has
+                special meaning in XML, so you should escape it using "&amp;amp;".</dd>
+        </dl>
+
+        <p>
+            Below is a sample config file section (note: the "..." sections in the examples indicate areas
+            where the rest of the config file would exist):
+        </p>
+
+        <fieldset>
+            <legend>Example database config in openfire.xml</legend>
+            <pre><code>&lt;jive&gt;
+  ...
+  &lt;jdbcProvider&gt;
+    &lt;driver&gt;com.mysql.jdbc.Driver&lt;/driver&gt;
+    &lt;connectionString&gt;jdbc:mysql://localhost/dbname?user=username&amp;amp;password=secret&lt;/connectionString&gt;
+  &lt;/jdbcProvider&gt;
+  ...
+&lt;/jive&gt;</code></pre>
+        </fieldset>
+
+    </section>
+
+    <section id="authentication-integration">
+
+        <h2>Authentication Integration</h2>
+
+        <p>
+            The simplest possible integration with a custom external database is authentication integration.
+            Use the following settings to enable authentication integration.
+        </p>
+        <ul>
+            <li>provider.auth.className -- set the value to <code>org.jivesoftware.openfire.auth.JDBCAuthProvider</code>.</li>
+            <li>jdbcAuthProvider.passwordSQL -- the SQL String to select a user's password. The SQL
+                            statement should contain a single "?" character, which will be dynamically replaced with
+                            a username when being executed.</li>
+            <li>jdbcAuthProvider.passwordType -- the type of the password. Valid values are:
+                <ul><li><span class="short-tab">plain</span> (the password is stored as plain text)</li>
+                    <li><span class="short-tab">md5</span> (the password is stored as a hex-encoded MD5 hash)</li>
+                    <li><span class="short-tab">sha1</span> (the password is stored as a hex-encoded SHA-1 hash)</li>
+                    <li><span class="short-tab">sha256</span> (the password is stored as a hex-encoded SHA-256 hash)</li>
+                    <li><span class="short-tab">sha512</span> (the password is stored as a hex-encoded SHA-512 hash)</li>
+                </ul>
+            If this value is not set, the password type is assumed to be plain.</li>
+        </ul>
+
+        <fieldset>
+            <legend>Example JDBC authentication configuration in openfire.xml</legend>
+            <pre><code>&lt;jive&gt;
+  ...
+  &lt;provider&gt;
+    &lt;auth&gt;
+      &lt;className&gt;org.jivesoftware.openfire.auth.JDBCAuthProvider&lt;/className&gt;
+    &lt;/auth&gt;
+  &lt;/provider&gt;
+  &lt;jdbcAuthProvider&gt;
+     &lt;passwordSQL&gt;SELECT password FROM user_account WHERE username=?&lt;/passwordSQL&gt;
+     &lt;passwordType&gt;plain&lt;/passwordType&gt;
+   &lt;/jdbcAuthProvider&gt;
+   ...
+  &lt;/jive&gt;</code></pre>
+        </fieldset>
+
+        <p>You'll most likely want to change which usernames are authorized to login to the
+            admin console. By default, only the user with username "admin" is allowed to login. However,
+            you may have different users in your LDAP directory that you'd like to be administrators. The
+            list of authorized usernames is controlled via the <code>admin.authorizedUsernames</code>
+            property. For example, to let the usersnames "joe" and "jane" login to the admin console:</p>
+
+        <fieldset>
+            <legend>Usage of 'authorizedUsernames' in openfire.xml</legend>
+            <pre><code>&lt;jive&gt;
+      ...
+      &lt;admin&gt;
+        ...
+        &lt;authorizedUsernames&gt;joe, jane&lt;/authorizedUsernames&gt;
+      &lt;/admin&gt;
+
+      ...
+    &lt;/jive&gt;</code></pre>
+        </fieldset>
+
+        <p>Another option is to use an AdminProvider. AdminProvider instances are responsible for listing
+            the administrators users dynamically. The default use the <code>authorizedUsernames</code> setting
+            previously explained. JDBCAdminProvider allows to list the administrators from a SQL query.
+            For example:</p>
+
+        <fieldset>
+            <legend>Example JDBC Admin config in openfire.xml</legend>
+            <pre><code>&lt;jive&gt;
+  ...
+  &lt;provider&gt;
+    ...
+    &lt;admin&gt;
+      &lt;className&gt;org.jivesoftware.openfire.admin.JDBCAdminProvider&lt;/className&gt;
+    &lt;/admin&gt;
+    ...
+  &lt;/provider&gt;
+  &lt;jdbcAdminProvider&gt;
+    &lt;getAdminsSQL&gt;SELECT userid FROM user_account WHERE administrator='Y'&lt;/getAdminsSQL&gt;
+  &lt;/jdbcAdminProvider&gt;
+  ...
+&lt;/jive&gt;</code></pre>
+        </fieldset>
+
+    </section>
+
+    <section id="user-integration">
+
+        <h2>User Integration</h2>
+
+        <p>Optionally, Openfire can load user data from your custom database. If you enable user integration
+        you must also enable authentication integration (see above). Use the following settings to
+        enable user integration.</p>
+
+        <dl>
+            <dt>provider.user.className</dt>
+            <dd>set the value to <code>org.jivesoftware.openfire.user.JDBCUserProvider</code>.</dd>
+
+            <dt>jdbcUserProvider.loadUserSQL</dt>
+            <dd>the SQL statement to load the name and email address of a user (in
+                that order) given a username. The SQL statement should contain a single "?" character,
+                which will be dynamically replaced with a username when being executed.</dd>
+
+            <dt>jdbcUserProvider.userCountSQL</dt>
+            <dd>the SQL statement to load the total number of users in the database.</dd>
+
+            <dt>jdbcUserProvider.allUsersSQL</dt>
+            <dd>the SQL statement to load all usernames in the database.</dd>
+
+            <dt>jdbcUserProvider.searchSQL</dt>
+            <dd>the SQL statement fragment used to search your database for users.
+                the statement should end with "WHERE" -- the username, name, and email fields will
+                then be dynamically appended to the statement depending on the search. If this value
+                is not set, searching will not be enabled.</dd>
+
+            <dt>usernameField</dt>
+            <dd>the name of the username database field, which will be used for searches.</dd>
+
+            <dt>nameField</dt>
+            <dd>the name of the name database field, which will be used for searches.</dd>
+
+            <dt>emailField</dt>
+            <dd>the name of the email database field, which will be used for searches.</dd>
+        </dl>
+
+        <p>
+            Below is a sample config file section. Note that the single provider section must include
+            all providers that should be configured:
+        </p>
+
+        <fieldset>
+            <legend>Configuration to obtain users from a JDBC source</legend>
+            <pre><code>&lt;jive&gt;
+  ...
+  &lt;provider&gt;
+    &lt;auth&gt;
+      &lt;className&gt;org.jivesoftware.openfire.auth.JDBCAuthProvider&lt;/className&gt;
+    &lt;/auth&gt;
+    &lt;user&gt;
+      &lt;className&gt;org.jivesoftware.openfire.user.JDBCUserProvider&lt;/className&gt;
+    &lt;/user&gt;
+  &lt;/provider&gt;
+  &lt;jdbcAuthProvider&gt;
+     &lt;passwordSQL&gt;SELECT password FROM user_account WHERE username=?&lt;/passwordSQL&gt;
+     &lt;passwordType&gt;plain&lt;/passwordType&gt;
+  &lt;/jdbcAuthProvider&gt;
+  &lt;jdbcUserProvider&gt;
+     &lt;loadUserSQL&gt;SELECT name,email FROM myUser WHERE username=?&lt;/loadUserSQL&gt;
+     &lt;userCountSQL&gt;SELECT COUNT(*) FROM myUser&lt;/userCountSQL&gt;
+     &lt;allUsersSQL&gt;SELECT username FROM myUser&lt;/allUsersSQL&gt;
+     &lt;searchSQL&gt;SELECT username FROM myUser WHERE&lt;/searchSQL&gt;
+     &lt;usernameField&gt;username&lt;/usernameField&gt;
+     &lt;nameField&gt;name&lt;/nameField&gt;
+     &lt;emailField&gt;email&lt;/emailField&gt;
+  &lt;/jdbcUserProvider&gt;
+   ...
+ &lt;/jive&gt;</code></pre>
+        </fieldset>
+
+    </section>
+
+    <section id="group-integration">
+
+        <h3>Group Integration</h3>
+
+        <p>Openfire can load group data from your custom database. If you enable group integration
+        you must also enable authentication integration; you'll also likely want to enable user
+        integration (see above). Use the following settings to enable group integration.</p>
+
+        <dl>
+            <dt>provider.group.className</dt>
+            <dd>set the value to <code>org.jivesoftware.openfire.group.JDBCGroupProvider</code>.</dd>
+
+            <dt>jdbcGroupProvider.groupCountSQL</dt>
+            <dd>the SQL statement to load the total number of groups in the database.</dd>
+
+            <dt>jdbcGroupProvider.allGroupsSQL</dt>
+            <dd>the SQL statement to load all groups in the database.</dd>
+
+            <dt>jdbcGroupProvider.userGroupsSQL</dt>
+            <dd>the SQL statement to load all groups for a particular user.
+                The SQL statement should contain a single "?" character, which will be dynamically replaced
+                with a username when being executed.</dd>
+
+            <dt>jdbcGroupProvider.descriptionSQL</dt>
+            <dd>the SQL statement to load the description of a group.
+                The SQL statement should contain a single "?" character, which will be dynamically replaced
+                with a group name when being executed.</dd>
+
+            <dt>jdbcGroupProvider.loadMembersSQL</dt>
+            <dd>the SQL statement to load all members in a group.
+                The SQL statement should contain a single "?" character, which will be dynamically replaced
+                with a group name when being executed.</dd>
+
+            <dt>jdbcGroupProvider.loadAdminsSQL</dt>
+            <dd>the SQL statement to load all administrators in a group.
+                The SQL statement should contain a single "?" character, which will be dynamically replaced
+                with a group name when being executed.</dd>
+        </dl>
+
+        <p>
+            Below is a sample config file section. Note that the single provider section must include
+            all providers that should be configured:
+        </p>
+        <fieldset>
+            <legend>Configuration to obtain users, groups and authentication from a JDBC source</legend>
+            <pre><code>&lt;jive&gt;
+  ...
+  &lt;provider&gt;
+    &lt;auth&gt;
+      &lt;className&gt;org.jivesoftware.openfire.auth.JDBCAuthProvider&lt;/className&gt;
+    &lt;/auth&gt;
+    &lt;user&gt;
+      &lt;className&gt;org.jivesoftware.openfire.user.JDBCUserProvider&lt;/className&gt;
+    &lt;/user&gt;
+    &lt;group&gt;
+      &lt;className&gt;org.jivesoftware.openfire.group.JDBCGroupProvider&lt;/className&gt;
+    &lt;/group&gt;
+  &lt;/provider&gt;
+  &lt;jdbcAuthProvider&gt;
+     &lt;passwordSQL&gt;SELECT password FROM user_account WHERE username=?&lt;/passwordSQL&gt;
+     &lt;passwordType&gt;plain&lt;/passwordType&gt;
+  &lt;/jdbcAuthProvider&gt;
+  &lt;jdbcUserProvider&gt;
+     &lt;loadUserSQL&gt;SELECT name,email FROM myUser WHERE username=?&lt;/loadUserSQL&gt;
+     &lt;userCountSQL&gt;SELECT COUNT(*) FROM myUser&lt;/userCountSQL&gt;
+     &lt;allUsersSQL&gt;SELECT username FROM myUser&lt;/allUsersSQL&gt;
+     &lt;searchSQL&gt;SELECT username FROM myUser WHERE&lt;/searchSQL&gt;
+     &lt;usernameField&gt;username&lt;/usernameField&gt;
+     &lt;nameField&gt;name&lt;/nameField&gt;
+     &lt;emailField&gt;email&lt;/emailField&gt;
+  &lt;/jdbcUserProvider&gt;
+  &lt;jdbcGroupProvider&gt;
+       &lt;groupCountSQL&gt;SELECT count(*) FROM myGroups&lt;/groupCountSQL&gt;
+       &lt;allGroupsSQL&gt;SELECT groupName FROM myGroups&lt;/allGroupsSQL&gt;
+       &lt;userGroupsSQL&gt;SELECT groupName FROM myGroupUsers WHERE username=?&lt;/userGroupsSQL&gt;
+       &lt;descriptionSQL&gt;SELECT groupDescription FROM myGroups WHERE groupName=?&lt;/descriptionSQL&gt;
+       &lt;loadMembersSQL&gt;SELECT username FROM myGroupUsers WHERE groupName=? AND isAdmin='N'&lt;/loadMembersSQL&gt;
+       &lt;loadAdminsSQL&gt;SELECT username FROM myGroupUsers WHERE groupName=? AND isAdmin='Y'&lt;/loadAdminsSQL&gt;
+  &lt;/jdbcGroupProvider&gt;
+  ...
+&lt;/jive&gt;</code></pre>
+        </fieldset>
+
+    </section>
+
+    <footer>
+        <p>
+            An active support community for Openfire is available at
+            <a href="https://discourse.igniterealtime.org">https://discourse.igniterealtime.org</a>.
+        </p>
+    </footer>
+
+</article>
+
+</body>
+</html>
