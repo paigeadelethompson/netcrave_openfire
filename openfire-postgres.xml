@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jive> 
+  <adminConsole> 
+    <port>9090</port>  
+    <securePort>9091</securePort> 
+  </adminConsole>  
+  <locale>en</locale>  
+  <stream> 
+    <management> 
+      <active>true</active>  
+      <requestFrequency>5</requestFrequency> 
+    </management> 
+  </stream>  
+  <connectionProvider>
+    <className>org.jivesoftware.database.DefaultConnectionProvider</className>
+  </connectionProvider> 
+  <database>
+    <defaultProvider>
+      <driver>org.postgresql.Driver</driver> 
+      <serverURL>jdbc:${PGSQL_URL}</serverURL> 
+      <testBeforeUse>false</testBeforeUse> 
+      <testAfterUse>false</testAfterUse> 
+      <minConnections>8</minConnections> 
+      <maxConnections>32</maxConnections> 
+      <connectionTimeout>1.0</connectionTimeout>
+    </defaultProvider>
+  </database> 
+  <setup>${SETUP_MODE}</setup>
+  <xmpp>
+    <domain>localhost</domain>
+    <fqdn>xmpp</fqdn>
+  </xmpp>
+  <user>
+    <scramHashedPasswordOnly>true</scramHashedPasswordOnly>
+  </user>
+</jive>
