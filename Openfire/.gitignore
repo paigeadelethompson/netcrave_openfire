@@ -1,0 +1,43 @@
+target/
+work/
+*.class
+
+# Ignore Intellij Idea project files
+*.iml
+*.ipr
+.idea
+atlassian-ide-plugin.xml
+out/
+
+# _allow_ Intellij shared resources
+!.idea/icon.svg
+
+# Ignore Eclipse project files
+.settings
+.project
+.classpath
+.factorypath
+
+# Ignore MacOSX files
+.DS_Store
+
+# Ignore Netbeans project files
+nbproject/
+nbbuild/
+/bin/
+
+# Microsoft Visual Studio Code
+.vscode/
+
+#Xcode noise
+build/osx/openfirePrefPane/build
+xcuserdata/
+
+# build temp folders
+rpmbuild/
+debian/
+distribution/build/osx/
+
+.gradle
+
+aioxmpp

@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Openfire: Overview</title>
+    <link type="text/css" rel="stylesheet" href="style.css">
+    <style>
+        dl {
+            display: unset;
+        }
+        dt {
+            margin-left: 4em;
+        }
+        dd {
+            margin-left: 6em;
+            margin-bottom: 1.5em;
+        }
+    </style>
+</head>
+<body>
+
+<article>
+
+    <header>
+        <img src="images/header_logo.gif" alt="Openfire Logo" />
+        <h1>Openfire ${project.version}</h1>
+    </header>
+
+    <p>
+        Openfire provides comprehensive group chat and instant
+        messaging (IM) services using the XMPP protocol.
+    </p>
+
+    <section id="documentation">
+
+        <h2>Administrator Documentation</h2>
+
+        <h3 id="basic-administration">Basic Server Administration</h3>
+
+        <p>
+            Guides that are applicable to most administrators of an Openfire instance. These cover the basics.
+        </p>
+
+        <dl>
+            <dt><a href="install-guide.html">Installation Guide</a></dt>
+            <dd>How to install Openfire.</dd>
+
+            <dt><a href="database.html">Database Installation Guide</a></dt>
+            <dd>How to setup your database for use with Openfire.</dd>
+
+            <dt><a href="upgrade-guide.html">Upgrade Guide</a></dt>
+            <dd>Instructions for upgrading an existing Openfire installation.</dd>
+
+            <dt><a href="one-time-access-token-guide.html">Recovery of an Admin Password</a></dt>
+            <dd>Instructions to recover an administrative account for which the password has been lost.</dd>
+
+        </dl>
+
+        <h3 id="advanced-administration">Advanced Server Administration</h3>
+
+        <p>
+            The following guides cover more specialized topics. These aren't necessarily applicable to every Openfire
+            installation.
+        </p>
+
+        <dl>
+            <dt><a href="network-configuration-guide.html">Network Configuration Guide</a></dt>
+            <dd>Describes how to make Openfire accessible to its users.</dd>
+
+            <dt><a href="ssl-guide.html">TLS Guide</a></dt>
+            <dd>A guide to setting up Openfire's TLS secure socket support.</dd>
+
+            <dt><a href="separating-admin-users-guide.html">Separating Administrative Users Guide</a></dt>
+            <dd>A guide to setting up Openfire to work with different user stores for admins and non-administrative users.</dd>
+
+            <dt><a href="load-balancing.html">Load Balancing Guide</a></dt>
+            <dd>How to spread client and server connections over multiple instances of Openfire</dd>
+
+            <dt><a href="db-clustering-guide.html">Clustered Database Guide</a></dt>
+            <dd>Instructions on using Openfire with a database that consists of more than one server.</dd>
+
+            <dt><a href="trunking-guide.html">Trunking (Gateway) Guide</a></dt>
+            <dd>A guide to set up Openfire to mediate traffic that is exchanged between other XMPP domains</dd>
+        </dl>
+
+        <h3 id="integration-external">Integration with External Data Sources</h3>
+
+        <p>
+            Openfire is written to facilitate integration with existing data sources, such as external user directories
+            or custom database. The guides in this section describe how such integration can be achieved.
+        </p>
+
+        <dl>
+            <dt><a href="ldap-guide.html">Active Directory and LDAP Integration Guide</a></dt>
+            <dd>A guide to setting up Openfire to work with Active Directory or LDAP user stores.</dd>
+
+            <dt><a href="db-integration-guide.html">Custom Database Integration Guide</a></dt>
+            <dd>A guide to integrating Openfire authentication, user, and group data with a custom database.</dd>
+        </dl>
+
+    </section>
+
+    <section id="developer-documentation">
+
+        <h2>Developer Documentation</h2>
+
+        <h3 id="generic-development">Generic Development Guides</h3>
+
+        <p>
+            Guides for developers that work with the Openfire source code.
+        </p>
+
+        <dl>
+            <dt><a href="source-build.html">Building the Source</a></dt>
+            <dd>Instructions for downloading and compiling the Openfire source code.</dd>
+
+            <dt><a href="demoboot-guide.html">Starting an auto-provisioned instance of Openfire (demoboot)</a></dt>
+            <dd>Starting a running Openfire instance without running through the setup.</dd>
+
+            <dt><a href="ide-vscode-setup.html">Openfire Source Code in Visual Studio Code</a></dt>
+            <dd>A short tutorial on how to work with the Openfire source code in the Visual Studio Code IDE.</dd>
+
+            <dt><a href="plugin-dev-guide.html">Plugin Developer Guide</a></dt>
+            <dd>A guide to writing and installing plugins for Openfire.</dd>
+
+            <dt><a href="translator-guide.html">Translator Guide</a></dt>
+            <dd>Information for those interested in translating the admin console of Openfire into other languages.</dd>
+
+            <dt><a href="overlay.html">Customization Guide</a></dt>
+            <dd>Instructions on customization support within the build process for Openfire.</dd>
+
+            <dt><a href="internal-networking.html">Internal Networking Guide</a></dt>
+            <dd>Guide to help developers understand Openfire's internal networking.</dd>
+
+            <dt><a href="working-with-openfire.html">Tips &amp; tricks for working with Openfire</a></dt>
+            <dd>Some collected tools, tips and useful links.</dd>
+        </dl>
+
+        <h3 id="dataprovider-development">Data Provider / IAM Implementation Guides</h3>
+
+        <p>
+            Guides for implementors of custom integration of external authentication, users and other entities.
+        </p>
+
+        <dl>
+            <dt><a href="implementing-authprovider-guide.html">Custom Authentication Provider Guide</a></dt>
+            <dd>Describes how to integrate Openfire with an external authentication system.</dd>
+
+            <dt><a href="implementing-groupprovider-guide.html">Custom Group Provider Guide</a></dt>
+            <dd>Describes how to integrate Openfire with an external system that provides Group definitions.</dd>
+
+            <dt><a href="implementing-userprovider-guide.html">Custom User Provider Guide</a></dt>
+            <dd>Describes how to integrate Openfire with an external system that provides User definitions</dd>
+
+            <dt><a href="pluggable-roster-support-guide.html">Pluggable Roster Support Guide</a></dt>
+            <dd>A guide to integrating Openfire rosters with an alternate store.</dd>
+        </dl>
+
+        <h3 id="client-development">Guides for Client Developers</h3>
+
+        <p>
+            Openfire is an XMPP server. It can therefor be used by any application that implements this protocol. This
+            section lists a number of minimal examples using various libraries (mostly third-party) that illustrate how
+            they can be used to interact with Openfire. Note that there are <a href="https://xmpp.org/software/">many
+            other libraries</a> available than the ones listed here!
+        </p>
+
+        <dl>
+            <dt><a href="client-minimal-working-example-smack.html">Smack: A Minimal Working Example (in Java)</a></dt>
+            <dd>Shows how to use a client implemented with the Smack library (Java) to connect to Openfire.</dd>
+
+            <dt><a href="client-minimal-working-example-mellium.html">Mellium: A Minimal Working Example (in Go)</a></dt>
+            <dd>Shows how to use a client implemented with the Mellium library (Go) to connect to Openfire.</dd>
+
+            <dt><a href="client-minimal-working-example-moxxmpp.html">moxxmpp: A Minimal Working Example (in Dart)</a></dt>
+            <dd>Shows how to use a client implemented with the moxxmpp library (Dart) to connect to Openfire.</dd>
+
+            <dt><a href="client-minimal-working-example-stanzajs.html">StanzaJS: A Minimal Working Example (in Javascript/Typescript)</a></dt>
+            <dd>Shows how to use a client implemented with the StanzaJS library (Javascript/Typescript) to connect to Openfire.</dd>
+
+            <dt><a href="client-minimal-working-example-stropejs.html">Strophe.js: A Minimal Working Example (in Javascript)</a></dt>
+            <dd>Shows how to use a client implemented with the Strophe.js library (Javascript) to connect to Openfire.</dd>
+
+            <dt><a href="client-minimal-working-example-twistedwords.html">Twisted Words: A Minimal Working Example (in Python)</a></dt>
+            <dd>Shows how to use a client implemented with the Twisted Words library (Python) to connect to Openfire.</dd>
+
+            <dt><a href="client-minimal-working-example-xmppdotnet.html">XmppDotNet: A Minimal Working Example (in C# / .NET)</a></dt>
+            <dd>Shows how to use a client implemented with the XmppDotNet library (.NET) to connect to Openfire.</dd>
+
+            <dt><a href="client-minimal-working-example-whixp.html">Whixp: A Minimal Working Example (in Dart)</a></dt>
+            <dd>Shows how to use a client implemented with the Whixp library (Dart) to connect to Openfire.</dd>
+        </dl>
+
+        <h3 id="reference-docs">Reference Documentation</h3>
+
+        <dl>
+            <dt><a href="javadoc/index.html">JavaDocs</a></dt>
+            <dd>Openfire API documentation.</dd>
+
+            <dt><a href="protocol-support.html">Protocol Support</a></dt>
+            <dd>Provides details on the XMPP support and XEPs that Openfire implements.</dd>
+
+            <dt><a href="database-guide.html">Database Schema Guide</a></dt>
+            <dd>A tour of the Openfire database schema for developers and database administrators.</dd>
+        </dl>
+
+    </section>
+
+    <footer>
+        <p>
+            An active support community for Openfire is available at
+            <a href="https://discourse.igniterealtime.org">https://discourse.igniterealtime.org</a>.
+        </p>
+    </footer>
+
+</article>
+
+</body>
+</html>

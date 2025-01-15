@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Openfire: Clustered Database Guide</title>
+    <link href="style.css" rel="stylesheet" type="text/css">
+</head>
+<body>
+
+<article>
+
+    <header>
+        <img src="images/header_logo.gif" alt="Openfire Logo" />
+        <h1>Clustered Database Guide</h1>
+    </header>
+
+    <nav>
+        <a href="index.html">&laquo; Back to documentation index</a>
+    </nav>
+
+    <section id="intro">
+
+        <aside>
+            <p>
+                The embedded database of Openfire cannot be clustered. This guide only applies to databases that are external to Openfire.
+            </p>
+        </aside>
+
+        <h2>Introduction</h2>
+
+        <p>
+            Openfire uses a database to store most of the data that it needs to persist. Openfire can use both an
+            embedded database and variety of external databases, as explained in the <a href="database.html">Database Installation Guide</a>.
+            For many applications, these options suffice. For others, where performance or resilience is of high
+            importance, it can be desired to use a <em>clustered</em> database.
+        </p>
+        <p>
+            Most of the implementation details of configuring and using a clustered database server is
+            specific to the vendor of your database. There is only a limited amount of generically available
+            configuration in Openfire that is directly geared towards having a database cluster. This document will
+            describe those, and will complement that with descriptions of generic approaches and best practices. You
+            will need to cross-reference these with the clustering-related documentation of your database vendor.
+        </p>
+        <p>
+            This document describes approaches to have Openfire interact with a clustered database. The document is
+            broken down in these sections:
+        </p>
+        <nav>
+            <ul>
+                <li><a href="#background">Background</a></li>
+                <li><a href="#replication-types">Replication Types</a>
+                    <ul>
+                        <li><a href="#replication-types-synchronicity">Synchronous versus asynchronous replication</a></li>
+                    </ul>
+                </li>
+                <li><a href="#connecting">Connecting Openfire to the database cluster</a></li>
+                <li><a href="#loadbalancer">Using a load balancer</a>
+                    <ul>
+                        <li><a href="#loadbalancer-availability">Load balancing based on server availability</a></li>
+                        <li><a href="#loadbalancer-querytype">Load balancing based on query type</a></li>
+                    </ul>
+                </li>
+                <li><a href="#example-activepassive-postgres-repmgr">Example setup: active/passive setup with PostgreSQL and Repmgr</a></li>
+            </ul>
+        </nav>
+
+    </section>
+
+
+    <section id="background">
+
+        <h2>Background</h2>
+
+        <p>
+            The term "database clustering" is somewhat ambiguous. The specific definition is often left to the
+            interpretation of the vendor of your database product. Generally speaking, "database clustering" aims to
+            improve one or more of the following characteristics:
+        </p>
+        <dl>
+            <dt>Reliability</dt>
+            <dd>Minimize the impact of a single database server that becomes unavailable (e.g. software or hardware failure, scheduled maintenance).</dd>
+
+            <dt>Scalability</dt>
+            <dd>Improve the speed of database operations by spreading or targeting load</dd>
+        </dl>
+    </section>
+
+    <section id="replication-types">
+
+        <h2>Replication Types</h2>
+
+        <p>
+            Replication is the manner in which database servers that make up a cluster synchronize data amongst
+            themselves. There are a couple of commonly used approaches by database vendors to replicate data:
+        </p>
+        <dl>
+            <dt>active/active</dt>
+            <dd>All database servers in the database cluster can equally read and write the data, exchanging data with each other to maintain state.</dd>
+
+            <dt>active/passive</dt>
+            <dd>Only one database server (the 'primary') is used for writing data, which replicates the data to the other, passive, servers ('secondaries') in the database cluster.</dd>
+        </dl>
+        <p>
+            The 'active/active' replication type generally allows for a lot of flexibility: any server automatically
+            replaces one if its siblings that becomes unavailable. However: creating a fully 'active/active' setup is
+            often hard to accomplish. Sometimes, guarantees around data validity are different, or less strict.
+        </p>
+        <p>
+            Replication of the 'active/passive' type is typically easier to set up, and, as long as the authoritative
+            server remains available, typically does not compromise on data validity constraints. However, this
+            approach can be less fault-tolerant, especially when unexpected outages of the authoritative server occur.
+            Depending on the vendor's functionality and the configuration, a secondary server may become the primary
+            automatically, or may need manual "promotion".
+        </p>
+
+        <h3 id="replication-types-synchronicity">Synchronous versus asynchronous replication</h3>
+
+        <p>
+            A common characteristic of an active/passive replication configuration is that the primary distributes data
+            to the secondaries in an asynchronous, one-way manner. Unlike to <em>synchronous</em> replication (in which
+            a commit that is performed on the primary typically blocks until all other cluster nodes have acknowledged
+            that they have replicated the data), asynchronous replication typically makes no guarantees as to when
+            certain data becomes available on secondary servers. Asynchronous secondaries can thus "lag behind": they do
+            not offer any guarantee that a read will contain data that was just written to the primary server.
+        </p>
+
+        <p>
+            Some database vendors support replication types that offer a mix of these characteristics of asynchronous
+            and synchronous replication. MySQL's <em>semi-synchronous</em> replication, for example, will cause a
+            commit to the primary block until least one secondary server acknowledges the data.
+        </p>
+
+        <aside>
+            <p>Openfire expects data to be available on all database servers, after it has been written to one.</p>
+        </aside>
+
+        <p>
+            When Openfire is configured to use a database cluster, it treats the database as a singular logical entity.
+            After it applies a change to the database, it expects that change to be visible to subsequent
+            transactions/queries, irrespectively of the Openfire cluster node that makes the database request, or the
+            database server that processes the request. For this reason, Openfire, in its normal operation mode, should
+            not interact with database servers that use an asynchronous replication type. Database servers that are
+            populated through asynchronous replication should only be used for standby/backup purposes, or for custom,
+            non-Openfire functionality that needs to use Openfire data (such as analytics and reporting).
+        </p>
+
+    </section>
+
+    <section id="connecting">
+
+        <h2>Connecting Openfire to the database cluster</h2>
+
+        <p>
+            The <a href="database.html">Database Installation Guide</a> describes how Openfire is configured to connect
+            to a database. Primarily, a <abbr title="Java DataBase Connectivity">JDBC</abbr> URL is used to define
+            most of the configuration. This URL varies depending on your database vendor. These are some examples:
+        </p>
+        <dl>
+            <dt>MySQL</dt><dd><code>jdbc:mysql://HOSTNAME:3306/DATABASENAME</code></dd>
+            <dt>Microsoft SQL Server</dt><dd><code>jdbc:sqlserver://HOSTNAME:1433;databaseName=DATABASENAME;applicationName=Openfire</code></dd>
+            <dt>PostgreSQL</dt><dd><code>jdbc:postgresql://HOSTNAME:5432/DATABASENAME</code></dd>
+        </dl>
+        <p>
+            Many (but not all!) solutions for database clustering involve exposing the database cluster on more than one
+            database server address. Often, each database server in the cluster is uniquely addressable. Many database
+            vendors allow you to supply more than one server address in the JDBC URL.
+        </p>
+        <p>
+            As shown above, JDBC URLs for non-clustered database connections differ greatly depending on the database
+            vendor. The addition of cluster-specific configuration such as the definition of multiple hosts, or the
+            desired replication type, adds even more variation. When you want to define the JDBC URL that is used to
+            configure Openfire for database clustering, you will need to refer to the vendor-provided documentation.
+            Some example JDBC URLs that define more than one database server, as well as additional configuration:
+        </p>
+        <dl>
+            <dt>MySQL</dt><dd><code>jdbc:mysql://PRIMARYHOSTNAME:3306,SECONDARYHOST:3306/DATABASENAME?failOverReadOnly=false</code></dd>
+            <dt>Microsoft SQL Server</dt><dd><code>jdbc:sqlserver://HOSTNAME:1433;databaseName=DATABASENAME;applicationName=Openfire;multiSubnetFailover=true</code></dd>
+            <dt>PostgreSQL</dt><dd><code>jdbc:postgresql://PRIMARYHOSTNAME:5432,SECONDARYHOSTNAME:5432/DATABASENAME?targetServerType=primary</code></dd>
+        </dl>
+
+        <section>
+
+            <h4>Links to vendor-specific documentation</h4>
+
+            <ul>
+                <li><a href="https://dev.mysql.com/doc/connector-j/8.0/en/connector-j-multi-host-connections.html">MySQL Connector/J 8.0 Developer Guide: Multi-Host Connections</a></li>
+                <li><a href="https://learn.microsoft.com/en-us/sql/connect/jdbc/jdbc-driver-support-for-high-availability-disaster-recovery?view=sql-server-ver16">Microsoft SQL Server: JDBC driver support for High Availability, disaster recovery</a></li>
+                <li><a href="https://jdbc.postgresql.org/documentation/use/#connection-fail-over">PostgreSQL JDBC: Connection failover</a></li>
+            </ul>
+
+        </section>
+
+    </section>
+
+    <section id="loadbalancer">
+
+        <h2>Using a load balancer</h2>
+
+        <p>
+            When attempting to connect Openfire to a set of database servers, it can be beneficial to have an
+            intermediary entity managing the connections from Openfire to the database servers. A traditional load
+            balancer can offer benefits, while more specialized load balancers can offer even more features.
+        </p>
+        <p>
+            When using a load balancer, all Openfire servers connect not directly to the database servers, but to the
+            load balancer instead. Based on its configuration, it will forward the connection to one of the available
+            database servers. This has the advantage of not leaking/embedding the clustering configuration into Openfire.
+        </p>
+
+        <aside>
+            <p>
+                When using traditional load balancers, failure detection is ofter performed by health checks implemented
+                as connectivity probes. These probes might not be robust enough, as database servers can respond to
+                connection requests, while being unable to process data.
+            </p>
+        </aside>
+
+        <section id="loadbalancer-availability">
+
+            <h3>Load balancing based on server availability</h3>
+
+            <p>
+                By using a traditional load balancer, a lot of flexibility can be introduced in the network design.
+                A core concepts of most load balancers is failure detection, but many load balancers also allow the
+                servers that they are servicing to be disabled, or put in a 'maintenance mode', where connections are
+                gracefully drained.
+            </p>
+
+        </section>
+
+        <section id="loadbalancer-querytype">
+
+            <h3>Load balancing based on query type</h3>
+
+            <p>
+                In database clusters that are based on an active/active replication type, load balancing is relatively
+                straight-forward, as all database servers are generally able to service any request. In clusters that use an
+                active/passive replication type, data modifications ('writes'), can only be processed by the primary
+                server. Data reads can typically be processed by all the secondary database servers,
+                <a href="#replication-types-synchronicity">provided that replication is synchronous</a>.
+            </p>
+            <p>
+                At the time of writing, Openfire's database API does not distinguish between "read" and "write" database
+                queries that are executed: it does not explicitly allow for different database-configuration to be used
+                when processing a query of either type (however this is <a href="https://igniterealtime.atlassian.net/browse/OF-2546">
+                subject to a change</a>). When configuring Openfire to connect to only the primary database servers, the
+                role of the secondary server is essentially that of being a passive backup, or possibly a hot-standby.
+            </p>
+            <p>
+                Certain load balancers, such as <a href="https://proxysql.com/">ProxySQL</a> and
+                <a href="https://mariadb.com/resources/datasheets/mariadb-maxscale/">MariaDB MaxScale</a> are able to
+                inspect queries and route writes to a primary server, while distributing reads to the secondary servers.
+                Using such a solution allows for distribution of load related to the database queries.
+            </p>
+
+        </section>
+
+    </section>
+
+    <section id="example-activepassive-postgres-repmgr">
+
+        <h2>Example setup: active/passive setup with PostgreSQL and repmgr</h2>
+
+        <p class="disclaimer">
+            <strong>For illustrative purposes only.</strong> The architecture in this example is for informational and
+            discussion purposes only. It does not intent to define a 'production-grade' solution.
+        </p>
+
+        <p>
+            The following documents an architecture in which a cluster of Openfire servers interact with a cluster of
+            PostgreSQL database servers. <a href="https://repmgr.org/">repmgr</a> is used to manage the replication
+            within the database cluster. Automatic fail-over is realised by a combination of repmgr detecting outages
+            and promoting a secondary server as the primary, and using a specific JDBC URL configuration in Openfire
+            to prefer connecting to whichever is the primary server.
+        </p>
+
+        <h3>Characteristics</h3>
+
+        <dl>
+            <dt>Improved redundancy</dt>
+            <dd>Data will be available in more than one database, allowing for more fault-tolerant disaster recovery.</dd>
+
+            <dt>Unchanged scalability</dt>
+            <dd>Similar to working with a non-clustered database, Openfire interacts with a singular database server.
+                This configuration does not introduce significant additional database capacity or performance. The added
+                overhead of running a database cluster is largely compensated by using asynchronous replication.</dd>
+
+            <dt>Active/passive replication</dt>
+            <dd>Openfire will interact with only one database server. That server replicates it state to another server,
+                that is used as a hot-standby for automatic fail-over.</dd>
+
+            <dt>Asynchronous replication</dt>
+            <dd>Replication from the primary to secondary servers is asynchronous (although configurable). This improves
+                the time taken for queries (particularly non-read queries) as their execution does not need to be
+                delayed until secondary servers have acknowledged the change. The downside of this is that secondary
+                servers can "lag behind" the primary, which introduces a risk of small data loss in a disaster recovery
+                scenario.</dd>
+
+            <dt>Automatic fail-over</dt>
+            <dd>In case of scheduled or unscheduled outage of the primary database server, repmgr will promote the
+                secondary database server. Although some database queries performed by Openfire can fail, it should
+                continue to operate in all but the most exceptional cases.
+            </dd>
+
+            <dt>Split-brain protection</dt>
+            <dd>When a database server that previously crashed becomes available again, Openfire should not attempt to
+                use that server again, as now, that server no longer is the primary server. To prevent Openfire from
+                using the first server defined in the JDBC URL, use the <code>targetServerType</code> JDBC parameter
+                with an appropriate value.</dd>
+        </dl>
+
+        <h3>Database configuration</h3>
+
+        <p>
+            Full PostgreSQL cluster installation and configuration is beyond the scope of this document. For this example
+            we're using a containerised cluster using PostreSQL + repmgr bundled by Bitnami (see
+            <a href="https://hub.docker.com/r/bitnami/postgresql-repmgr">Docker Hub</a>). Here, two PostgreSQL servers are
+            created and configured with
+            <a href="https://www.postgresql.org/docs/current/warm-standby.html#STREAMING-REPLICATION">Streaming Replication</a>,
+            launching the first server as the designated initial primary server.
+        </p>
+
+        <p>
+            Below is an example Docker Compose file describing the two container instances for the example environment.
+            This is <em>not a production-ready example</em>. For example, there are no volumes defined for data persistence,
+            no backups configured, no external heathchecks, and no attempt to secure traffic moving across the Docker
+            network. It describes the simplest configuration of two machines, creating users for operation (one each for
+            an administrator, for openfire and for repmgr to use), and configuring repmgr for each machine. Launch this
+            example by copying it to an empty folder, and running <code>docker compose up -d</code> in a terminal.
+        </p>
+
+        <fieldset>
+            <legend>Example Docker Compose file</legend>
+            <pre><code>version: '3.7'
+
+services:
+
+  db-1:
+    image: bitnami/postgresql-repmgr:14.6.0
+    ports:
+      - 5432:5432
+    environment:
+      - POSTGRESQL_POSTGRES_PASSWORD=adminuserpasswordforserver1
+      - POSTGRESQL_USERNAME=openfire
+      - POSTGRESQL_PASSWORD=openfireuserpassword
+      - POSTGRESQL_DATABASE=openfire
+      - REPMGR_PASSWORD=repmgruserpassword
+      - REPMGR_PRIMARY_HOST=db-1
+      - REPMGR_PRIMARY_PORT=5432
+      - REPMGR_PARTNER_NODES=db-1,db-2:5432
+      - REPMGR_NODE_NAME=db-1
+      - REPMGR_NODE_NETWORK_NAME=db-1
+      - REPMGR_PORT_NUMBER=5432
+
+  db-2:
+    image: bitnami/postgresql-repmgr:14.6.0
+    ports:
+      - 5433:5432
+    environment:
+      - POSTGRESQL_POSTGRES_PASSWORD=adminuserpasswordforserver2
+      - POSTGRESQL_USERNAME=openfire
+      - POSTGRESQL_PASSWORD=openfireuserpassword
+      - POSTGRESQL_DATABASE=openfire
+      - REPMGR_PASSWORD=repmgruserpassword
+      - REPMGR_PRIMARY_HOST=db-1
+      - REPMGR_PRIMARY_PORT=5432
+      - REPMGR_PARTNER_NODES=db-1,db-2:5432
+      - REPMGR_NODE_NAME=db-2
+      - REPMGR_NODE_NETWORK_NAME=db-2
+      - REPMGR_PORT_NUMBER=5432</code></pre>
+        </fieldset>
+
+        <h3>Openfire configuration</h3>
+
+        <p>
+            To install the Openfire servers, follow the <a href="install-guide.html">Openfire Installation Guide</a> as
+            well as the documentation of the <a href="https://www.igniterealtime.org/projects/openfire/plugin-archive.jsp?plugin=hazelcast">
+            Hazelcast plugin for Openfire</a>.
+        </p>
+
+        <p>
+            When configuring the database connection for Openfire, use a JDBC URL that defines the addresses for both
+            the primary and secondary database servers, as shown in the example below. The <code>targetServerType</code>
+            parameter (as documented in <a href="https://jdbc.postgresql.org/documentation/use/">PostgreSQL's JDBC Driver
+            documentation</a>) should be configured to instruct Openfire to connect to the database server marked as
+            'primary' by repmgr. Without this configuration, Openfire will attempt to connect to the server that is
+            configured first. This can lead to problems (eg: a split-brain scenario) when that server suffers from an
+            outage, after which it recovers (at which time it is unlikely to have a complete data set).
+        </p>
+
+        <fieldset>
+            <legend>JDBC URL syntax for clustered PostgreSQL</legend>
+            <pre><code>jdbc:postgresql://PRIMARYHOSTNAME:PORT,SECONDARYHOSTNAME:PORT/DATABASENAME?targetServerType=primary</code></pre>
+        </fieldset>
+
+        <p>
+            Given the above PostgreSQL docker setup, and the above JDBC example, assuming the containers are running on
+            the local machine, a correct JDBC connection string might look like this:
+
+            <figure>
+                <a href="images/setup_pgcluster_jdbc.png"><img src="images/setup_pgcluster_jdbc.png" alt="Configuring Openfire to connect to a PostgreSQL cluster"></a>
+                <figcaption>Configuring Openfire to connect to a PostgreSQL cluster</figcaption>
+            </figure>
+        </p>
+
+        <p>
+            Alternatively, if configuring via autosetup in openfire.xml:
+        </p>
+
+        <fieldset>
+            <legend>Example openfire.xml configuration showing autosetup snippet</legend>
+        <pre><code>&lt;jive&gt;
+    ...
+    &lt;autosetup&gt;
+        ...
+        &lt;database&gt;
+            &lt;mode&gt;standard&lt;/mode&gt;
+            &lt;defaultProvider&gt;
+              &lt;driver&gt;org.postgresql.Driver&lt;/driver&gt;
+              &lt;serverURL&gt;jdbc:postgresql://localhost:5432,127.0.0.1:5433/openfire?targetServerType=primary&lt;/serverURL&gt;
+              &lt;username&gt;openfire&lt;/username&gt;
+              &lt;password&gt;openfireuserpassword&lt;/password&gt;
+              &lt;minConnections&gt;5&lt;/minConnections&gt;
+              &lt;maxConnections&gt;25&lt;/maxConnections&gt;
+              &lt;connectionTimeout&gt;1.0&lt;/connectionTimeout&gt;
+            &lt;/defaultProvider&gt;
+        &lt;/database&gt;
+        ...
+    &lt;/autosetup&gt;
+&lt;/jive&gt;</code></pre>
+        </fieldset>
+
+        <p class="note">
+            Note: If configuring the openfire.xml directly (e.g. for automatic provisioning of Openfire servers) the same
+            settings are valid outside the autosetup tag.
+        </p>
+
+        <p>
+            With both servers initialised to talk to the database, move on to configuring Openfire Clustering, by installing
+            the Hazelcast plugin and following the readme.
+        </p>
+
+        <figure>
+            <a href="images/setup_pgcluster_install_hazelcast.png"><img src="images/setup_pgcluster_install_hazelcast.png"
+                                                                        alt="Installing the Hazelcast plugin"></a>
+            <figcaption>Installing the Hazelcast plugin</figcaption>
+        </figure>
+
+        <p>Once the Hazelcast plugin is installed, enable Openfire's clustering in Server > Server Manager > Clustering.</p>
+
+        <figure>
+            <a href="images/setup_pgcluster_enable_clustering.png"><img src="images/setup_pgcluster_enable_clustering.png"
+                                                                        alt="Enable clustering in Openfire"></a>
+            <figcaption>Enable clustering in Openfire</figcaption>
+        </figure>
+
+        <p>
+            The networking configuration for Hazelcast is environment-sensitive. By default, it uses multicast, and may
+            well work out-of-the-box. If not, the
+            <a href="https://www.igniterealtime.org/projects/openfire/plugins/2.6.1/hazelcast/readme.html">docs</a>
+            include instructions on how to override those defaults to suit your local network.
+        </p>
+
+        <p>
+            Once configured, you will have a pair of clustered Openfire servers, resilient to a single Openfire server
+            failure, backed by a pair of clustered PostgreSQL servers, resilient to a single database server failure.
+        </p>
+
+        <h3>Automatic fail-over & recovery test</h3>
+
+        <p>
+            Given that we've got a containerised database environment, stopping and starting databases is easy to test. Run
+            <code>docker container stop `docker ps -q --filter "name=db-1"`</code> to stop the primary database server.
+            Continued use of the Admin console before and after this should continue without interruption. Checking logs
+            on the remaining database server should show the server being promoted to Primary.
+        </p>
+
+        <figure>
+            <a href="images/setup_pgcluster_second_primary.png"><img src="images/setup_pgcluster_second_primary.png"
+                                                                        alt="Second PostreSQL server being promoted to primary"></a>
+            <figcaption>Second PostreSQL server being promoted to primary</figcaption>
+        </figure>
+
+        <p>
+            Restoring the first database server should see it connect to the second (now primary) server, and recover. At
+            this point you can repeat the test for either server and see Openfire continue to operate without interruption.
+        </p>
+
+        <figure>
+            <a href="images/setup_pgcluster_recovery.png"><img src="images/setup_pgcluster_recovery.png"
+                                                                     alt="Restored PostreSQL server cloning from primary"></a>
+            <figcaption>Restored PostreSQL server cloning from primary</figcaption>
+        </figure>
+
+    </section>
+
+    <footer>
+        <p>
+            An active support community for Openfire is available at
+            <a href="https://discourse.igniterealtime.org">https://discourse.igniterealtime.org</a>.
+        </p>
+    </footer>
+
+</article>
+
+</body>
+</html>
