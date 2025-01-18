@@ -15,7 +15,7 @@ services:
       - ./openfire.xml:/usr/local/openfire/conf/openfire.xml:rw
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.ofadmin.rule=Host(`ofadmin.netcrave.network`)"
+      - "traefik.http.routers.ofadmin.rule=Host(`${FQDN}.$DOMAIN`)"
       - "traefik.http.services.ofadmin.loadbalancer.server.port=3000"
       - "traefik.http.routers.ofadmin.entrypoints=web"
       - "traefik.http.routers.ofadmin.service=openfire"
