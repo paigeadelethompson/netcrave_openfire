@@ -1,0 +1,26 @@
+version: '3'
+
+services:
+  openfire:
+    build:
+      context: ./Openfire
+    image: openfire/openfire:latest
+    env_file:
+      - ./config.env
+    command: ${ARGS}
+    networks:
+      - traefik_live
+    volumes:
+      - data:/var/lib/openfire:rw
+      - ./openfire.xml:/usr/local/openfire/conf/openfire.xml:rw
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.ofadmin.rule=Host(`ofadmin.netcrave.network`)"
+      - "traefik.http.services.ofadmin.loadbalancer.server.port=3000"
+      - "traefik.http.routers.ofadmin.entrypoints=web"
+      - "traefik.http.routers.ofadmin.service=openfire"
+networks:
+  traefik_live:
+    external: true
+volumes:
+  data:

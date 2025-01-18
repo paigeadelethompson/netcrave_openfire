@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
+
 <jive> 
   <adminConsole> 
     <port>9090</port>  
@@ -27,8 +28,8 @@
   </database> 
   <setup>${SETUP_MODE}</setup>
   <xmpp>
-    <domain>localhost</domain>
-    <fqdn>xmpp</fqdn>
+    <domain>${DOMAIN}</domain>
+    <fqdn>${FQDN}</fqdn>
   </xmpp>
   <user>
     <scramHashedPasswordOnly>true</scramHashedPasswordOnly>
